@@ -304,6 +304,11 @@ struct App : Gio::Application {
     App() :
         Gio::Application{"lssecrets.dkosmari.github.com"}
     {
+        set_option_context_summary("Show keyring secrets using libsecret.");
+        set_option_context_description(PACKAGE_NAME " <" PACKAGE_URL ">\n"
+                                       "Bug reports <" PACKAGE_BUGREPORT ">\n");
+
+
         add_main_option_entry(
 #if HAVE_GLIBMM_2_68
                               OptionType::BOOL,
@@ -323,6 +328,15 @@ struct App : Gio::Application {
                               'u',
                               "Unlock secrets.");
 
+        add_main_option_entry(
+#if HAVE_GLIBMM_2_68
+                              OptionType::BOOL,
+#else
+                              OptionType::OPTION_TYPE_BOOL,
+#endif
+                              "version",
+                              'v',
+                              "Print version number and exit.");
 
         signal_handle_local_options().connect(sigc::mem_fun(*this, &App::handle_local_options),
                                               true);
@@ -333,6 +347,11 @@ struct App : Gio::Application {
     int
     handle_local_options(const Glib::RefPtr<Glib::VariantDict>& options)
     {
+        if (options->contains("version")) {
+            cout << PACKAGE_STRING << endl;
+            return 0;
+        }
+
         if (options->contains("secrets"))
             show_secrets = true;
 

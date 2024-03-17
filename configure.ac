@@ -2,7 +2,11 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.71])
-AC_INIT([lssecrets], [0.1], [https://github.com/dkosmari/lssecrets])
+AC_INIT([lssecrets],
+        [1.0],
+        [https://github.com/dkosmari/lssecrets/issues],
+        [lssecrets],
+        [https://github.com/dkosmari/lssecrets])
 AC_CONFIG_SRCDIR([main.cpp])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
