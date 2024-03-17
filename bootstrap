@@ -1,0 +1,4 @@
+#!/bin/sh -x
+
+mkdir -p m4
+exec autoreconf -i "$@"

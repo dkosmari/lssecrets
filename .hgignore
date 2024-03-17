@@ -1,0 +1,17 @@
+syntax: glob
+
+*.in
+*.log
+*.o
+*.tar.gz
+*~
+.deps
+aclocal.m4
+autom4te.cache
+build-aux
+config.h
+config.status
+configure
+lssecrets
+Makefile
+stamp-h1
