@@ -44,5 +44,5 @@ If you're building from a tarball, you can skip step 0.
   2. Run `make`
   3. Optional: run `sudo make install`
 
-This software is a standard Automake package. Check the [INSTALL] file or run
+This software is a standard Automake package. Check the [INSTALL](INSTALL) file or run
 `./configure --help` for more detailed instructions.
