@@ -31,10 +31,20 @@
 
 
 using std::cout;
+using std::clog;
 using std::cerr;
 using std::endl;
 
 using namespace std::literals;
+
+
+#if HAVE_GLIBMM_2_68
+#define AF_NON_UNIQUE Gio::Application::Flags::NON_UNIQUE
+#define OEF_IN_MAIN   Glib::OptionEntry::Flags::IN_MAIN
+#else
+#define AF_NON_UNIQUE Gio::ApplicationFlags::APPLICATION_NON_UNIQUE
+#define OEF_IN_MAIN   Glib::OptionEntry::Flags::FLAG_IN_MAIN
+#endif
 
 
 template<typename T>
@@ -295,70 +305,59 @@ throw_error(GError* raw_err)
 struct App : Gio::Application {
 
 
-    bool show_secrets = false;
-    bool do_unlock = false;
+    enum Detail : int {
+        Service     = 0,
+        Collections = 1,
+        Items       = 2,
+        Attributes  = 3,
+        Secrets     = 4
+    };
+
+
+    int detail = Detail::Items;
+    bool unlock_flag = false;
+    bool version_flag = false;
+
+    Glib::OptionGroup main_group{"", ""};
+    Glib::OptionEntry detail_opt;
+    Glib::OptionEntry unlock_opt;
+    Glib::OptionEntry version_opt;
 
     std::optional<GObjectWrapper<SecretService>> service;
 
 
     App() :
-        Gio::Application{"lssecrets.dkosmari.github.com"}
+        Gio::Application{"lssecrets.dkosmari.github.com", AF_NON_UNIQUE}
     {
         set_option_context_summary("Show keyring secrets using libsecret.");
         set_option_context_description(PACKAGE_NAME " <" PACKAGE_URL ">\n"
                                        "Bug reports <" PACKAGE_BUGREPORT ">\n");
 
+        detail_opt.set_flags(OEF_IN_MAIN);
+        detail_opt.set_long_name("detail");
+        detail_opt.set_short_name('d');
+        detail_opt.set_description("Set detail of detail, where N is:\n"
+                                    "                                  0 = service\n"
+                                    "                                  1 = collections\n"
+                                    "                                  2 = items (default)\n"
+                                    "                                  3 = attributes\n"
+                                    "                                  4 = secrets");
+        detail_opt.set_arg_description("N");
+        main_group.add_entry(detail_opt, detail);
 
-        add_main_option_entry(
-#if HAVE_GLIBMM_2_68
-                              OptionType::BOOL,
-#else
-                              OptionType::OPTION_TYPE_BOOL,
-#endif
-                              "secrets",
-                              's',
-                              "Show secret values.");
-        add_main_option_entry(
-#if HAVE_GLIBMM_2_68
-                              OptionType::BOOL,
-#else
-                              OptionType::OPTION_TYPE_BOOL,
-#endif
-                              "unlock",
-                              'u',
-                              "Unlock secrets.");
+        unlock_opt.set_flags(OEF_IN_MAIN);
+        unlock_opt.set_long_name("unlock");
+        unlock_opt.set_short_name('u');
+        unlock_opt.set_description("Unlock secrets.");
+        main_group.add_entry(unlock_opt, unlock_flag);
 
-        add_main_option_entry(
-#if HAVE_GLIBMM_2_68
-                              OptionType::BOOL,
-#else
-                              OptionType::OPTION_TYPE_BOOL,
-#endif
-                              "version",
-                              'v',
-                              "Print version number and exit.");
+        version_opt.set_flags(OEF_IN_MAIN);
+        version_opt.set_long_name("version");
+        version_opt.set_short_name('v');
+        version_opt.set_description("Print version number and exit.");
+        main_group.add_entry(version_opt, version_flag);
 
-        signal_handle_local_options().connect(sigc::mem_fun(*this, &App::handle_local_options),
-                                              true);
-    }
-
-
-
-    int
-    handle_local_options(const Glib::RefPtr<Glib::VariantDict>& options)
-    {
-        if (options->contains("version")) {
-            cout << PACKAGE_STRING << endl;
-            return 0;
-        }
-
-        if (options->contains("secrets"))
-            show_secrets = true;
-
-        if (options->contains("unlock"))
-            do_unlock = true;
-
-        return -1; // means "continue processing options"
+        add_option_group(main_group);
     }
 
 
@@ -366,6 +365,11 @@ struct App : Gio::Application {
     on_activate()
         override
     {
+        if (version_flag) {
+            cout << PACKAGE_STRING << endl;
+            return;
+        }
+
         try {
             print();
         }
@@ -383,7 +387,7 @@ struct App : Gio::Application {
 
         GError* service_error = nullptr;
         int flags = SECRET_SERVICE_LOAD_COLLECTIONS;
-        if (show_secrets)
+        if (detail >= Detail::Secrets)
             flags |= SECRET_SERVICE_OPEN_SESSION;
 
         service = take(secret_service_get_sync(SecretServiceFlags(flags),
@@ -397,7 +401,6 @@ struct App : Gio::Application {
         cout << "  Path: "
              << g_dbus_proxy_get_object_path(*service)
              << '\n';
-
 
         // check known aliases
         const std::vector<std::string> known_aliases{
@@ -426,6 +429,9 @@ struct App : Gio::Application {
         }
 
         cout << '\n';
+
+        if (detail < Detail::Collections)
+            return;
 
         auto collections = to_vector<SecretCollection>(secret_service_get_collections(*service));
         for (auto& col : collections) {
@@ -475,14 +481,18 @@ struct App : Gio::Application {
                  << timestamp_to_string(modified).value()
                  << '\n';
 
-        bool locked = secret_collection_get_locked(col);
-        if (locked && do_unlock) {
+        if (unlock_flag && secret_collection_get_locked(col)) {
             auto error = unlock(col);
             if (error)
                 cout << indent << "  Error: " << error->what() << endl;
         }
+        bool locked = secret_collection_get_locked(col);
+        cout << indent << "  Locked: " << locked << '\n';
 
         cout << '\n';
+
+        if (detail < Detail::Items)
+            return;
 
         auto items = to_vector<SecretItem>(secret_collection_get_items(col));
         for (auto& item : items) {
@@ -522,6 +532,9 @@ struct App : Gio::Application {
                  << timestamp_to_string(modified).value()
                  << '\n';
 
+        if (detail < Detail::Attributes)
+            return;
+
         auto attributes = to_map(secret_item_get_attributes(item));
         if (!attributes.empty()) {
             static const std::string attrib_indent = indent + "    ";
@@ -536,16 +549,22 @@ struct App : Gio::Application {
             }
         }
 
-        bool locked = secret_item_get_locked(item);
-        if (locked && do_unlock) {
+        auto print_locked = [&item, indent] {
+            bool locked = secret_item_get_locked(item);
+            cout << indent << "  Locked: " << locked << '\n';
+        };
+
+        if (unlock_flag && secret_item_get_locked(item)) {
             auto error = unlock(item);
+            print_locked();
             if (error) {
                 cout << indent << "  Error: " << error->what() << endl;
                 return;
             }
-        }
+        } else
+            print_locked();
 
-        if (!show_secrets)
+        if (detail < Detail::Secrets)
             return;
 
         GError* error = nullptr;

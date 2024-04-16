@@ -9,13 +9,18 @@ keyring](https://specifications.freedesktop.org/secret-service/latest/) using
 Usage
 -----
 
-With no arguments, all unlocked collections and items are shown, without secrets:
+With no arguments, all unlocked collections and items are shown, without attributes or
+secrets:
 
     lssecrets
 
-To show secrets, use the argument `--secrets`:
+To show item attributes, use the argument `--detail=3`:
 
-    lssecrets --secrets
+    lssecrets --detail=3
+
+To show item attributes and secrets, use the argument `--detail=4`:
+
+    lssecrets --detail=4
 
 If there are collections or items locked, use the option `--unlock` to unlock everything:
 
@@ -23,7 +28,7 @@ If there are collections or items locked, use the option `--unlock` to unlock ev
 
 Both options can be combined, to unlock and show the secrets:
 
-    lssecrets --secrets --unlock
+    lssecrets --detail=4 --unlock
 
 
 Dependencies

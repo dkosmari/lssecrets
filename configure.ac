@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.71])
 AC_INIT([lssecrets],
-        [1.0],
+        [1.1],
         [https://github.com/dkosmari/lssecrets/issues],
         [lssecrets],
         [https://github.com/dkosmari/lssecrets])
